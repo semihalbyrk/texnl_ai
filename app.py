@@ -1,5 +1,7 @@
 import sys
 from pathlib import Path
+
+# src klasörünü Python path'ine ekle
 sys.path.append(str(Path(__file__).resolve().parent / "src"))
 
 import streamlit as st
