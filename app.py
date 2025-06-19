@@ -1,12 +1,10 @@
-import streamlit as st
-from src.inference.detect_anomaly import run_anomaly_detection
-from src.inference.recommend_assets import recommend_asset_reallocation
-
 import sys
 from pathlib import Path
-
-# src klasörünü sys.path'e ekle
 sys.path.append(str(Path(__file__).resolve().parent / "src"))
+
+import streamlit as st
+from inference.detect_anomaly import run_anomaly_detection
+from inference.recommend_assets import recommend_asset_reallocation
 
 st.set_page_config(page_title="TexNL AI Analiz Paneli", layout="wide")
 
