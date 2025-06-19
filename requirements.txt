@@ -1,0 +1,8 @@
+pandas
+numpy
+scikit-learn
+torch>=2.1
+gymnasium
+stable-baselines3
+joblib
+streamlit
