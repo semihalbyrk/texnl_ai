@@ -1,31 +1,30 @@
 import streamlit as st
-import sys
-from pathlib import Path
-
-# sys.path düzelt → src modülü erişilebilir olsun
-sys.path.append(str(Path(__file__).resolve().parent))
-
 from src.inference.detect_anomaly import run_anomaly_detection
 from src.inference.recommend_assets import recommend_asset_reallocation
 
-st.set_page_config(page_title="TexNL AI", layout="wide")
+st.set_page_config(page_title="TexNL AI Analiz Paneli", layout="wide")
 
 st.title("🧠 TexNL AI Analiz Paneli")
-st.markdown("Servis noktalarının verimlilik analizini ve kaynak önerilerini görüntüleyin.")
+st.markdown("Servis noktalarının verimliliğini analiz edin, sistem önerilerini görüntüleyin.")
 
-st.divider()
-st.header("📊 Anomali Tespiti")
+# Bölüm 1: Anomali Tespiti
+st.markdown("### ⚠️ Anomali Tespiti")
+st.write("Service Point bazlı anomalik davranışları tespit edin.")
 
 if st.button("Anomalileri Tespit Et"):
     anomalies = run_anomaly_detection()
     if anomalies:
-        for item in anomalies:
-            st.warning(item)
+        for anomaly in anomalies:
+            st.warning(anomaly)
     else:
-        st.success("Anomali tespit edilmedi.")
+        st.success("Herhangi bir anomali tespit edilmedi.")
 
+# Ayırıcı
 st.divider()
-st.header("📦 Asset Dağılım Önerileri (DRL)")
+
+# Bölüm 2: DRL ile Kaynak Dağıtım Önerileri
+st.markdown("### 📦 Asset Dağılım Önerileri (DRL)")
+st.write("DRL modeli tarafından önerilen asset yeniden konumlandırma kararlarını görüntüleyin.")
 
 if st.button("Önerileri Hesapla"):
     recs = recommend_asset_reallocation()
@@ -33,4 +32,4 @@ if st.button("Önerileri Hesapla"):
         for rec in recs:
             st.markdown(f"➡️ {rec}")
     else:
-        st.info("Herhangi bir öneri üretilmedi.")
+        st.info("Öneri üretilemedi veya model yüklenemedi.")
