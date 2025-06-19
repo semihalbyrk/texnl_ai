@@ -54,11 +54,11 @@ st.divider()
 
 # ==========  RENKLENDİRME FONKSİYONU  ==========
 def row_style(row):
-    if row.is_anomaly:
+    if row["is_anomaly"]:              # <— attr yerine dizi erişimi
         return ["background-color: rgba(255,0,0,0.25)"] * len(row)
-    if row.util_ratio < 0.3:
+    if row["util_ratio"] < 0.3:
         return ["background-color: rgba(220,220,220,0.25)"] * len(row)
-    if row.util_ratio > 0.9:
+    if row["util_ratio"] > 0.9:
         return ["background-color: rgba(0,255,0,0.15)"] * len(row)
     return [""] * len(row)
 
