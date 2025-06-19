@@ -1,21 +1,20 @@
-import pandas as pd
-import joblib
-from sklearn.ensemble import IsolationForest
+import torch, joblib, pandas as pd
+from pathlib import Path
+from src.models.autoencoder import BetaVAE
 
-def run_anomaly_detection():
-    df = pd.read_csv("data/sp_feature_table.csv")
-    X = df[['total_kg','total_capacity_kg','tasks_per_week','utilization']]
+ROOT = Path(__file__).resolve().parents[2]
+SCL  = joblib.load(ROOT/'models'/'scaler.gz')
+AE   = BetaVAE(6); AE.load_state_dict(torch.load(ROOT/'models'/'ae.pt'))
+AE.eval()
 
-    model_path = "models/ae_anomaly_model.pkl"
-    if not joblib.os.path.exists(model_path):
-        return ["⚠️ Anomali modeli bulunamadı."]
-
-    model = joblib.load(model_path)
-    preds = model.predict(X)
-    df['anomaly'] = preds
-
-    output = []
-    for _, row in df[df['anomaly'] == -1].iterrows():
-        output.append(f"{row['Service Point']} → anomalik davranış tespit edildi")
-
-    return output
+def label_anomalies(df: pd.DataFrame) -> pd.DataFrame:
+    Xn = torch.tensor(SCL.transform(df[['total_kg','total_capacity_kg',
+                                        'tasks_per_week','util_ratio',
+                                        'avg_kg','avg_bags']].fillna(0)),
+                      dtype=torch.float32)
+    recon, _, _ = AE(Xn)
+    err = torch.mean((Xn - recon).pow(2), dim=1).detach().numpy()
+    threshold = err.mean() + 2*err.std()
+    df['recon_error'] = err
+    df['is_anomaly']  = err > threshold
+    return df
