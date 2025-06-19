@@ -45,8 +45,8 @@ st.dataframe(df_view[
 ])
 
 # ---------- 4) Öneri motoru ----------
-st.header("📦 Asset Dağılım Önerileri (DRL)")
-if st.button("Önerileri Hesapla"):
-    moves = recommend(df)
-    for m in moves:
-        st.write("➡️ ", m)
+st.write("### 📦 Asset Dağılım Önerileri (DRL)")
+st.write(" ")
+
+for rec in recommend_asset_reallocation():
+    st.markdown(f"➡️ {rec}")
