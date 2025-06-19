@@ -1,35 +1,52 @@
-import streamlit as st
-from src.inference.detect_anomaly import run_anomaly_detection
-from src.inference.recommend_assets import recommend_asset_reallocation
+# app.py  — TexNL AI dashboard (Streamlit)
+import pathlib, pandas as pd, streamlit as st
+from src.features.build_features import build as build_features
+from src.inference.detect_anomaly import label_anomalies
+from src.inference.recommend_assets import recommend
 
-st.set_page_config(page_title="TexNL AI Analiz Paneli", layout="wide")
+ROOT  = pathlib.Path(__file__).resolve().parent
+DATA  = ROOT / "data"
+MODELS = ROOT / "src" / "models"
 
-st.title("🧠 TexNL AI Analiz Paneli")
-st.markdown("Servis noktalarının verimliliğini analiz edin, sistem önerilerini görüntüleyin.")
+st.set_page_config(page_title="TexNL Efficiency AI", layout="wide")
 
-# Bölüm 1: Anomali Tespiti
-st.markdown("### ⚠️ Anomali Tespiti")
-st.write("Service Point bazlı anomalik davranışları tespit edin.")
+# ---------- 1) Veriyi hazırla & özellik tablosu üret ----------
+csv_path = DATA / "sp_feature_table.csv"
+if not csv_path.exists():
+    st.info("CSV bulunamadı ➜ Excel dönüştürülüyor & feature table oluşturuluyor…")
+    # Excel → CSV (bir kerelik)
+    xls = pd.ExcelFile(DATA / "TexNL_Data.xlsx")
+    xls.parse("Service Points").to_csv(DATA/"service_points.csv", index=False)
+    xls.parse("Assets").to_csv(DATA/"assets.csv", index=False)
+    xls.parse("Task Record").to_csv(DATA/"tasks.csv", index=False)
+    build_features()         #  src/features/build_features.py
 
-if st.button("Anomalileri Tespit Et"):
-    anomalies = run_anomaly_detection()
-    if anomalies:
-        for anomaly in anomalies:
-            st.warning(anomaly)
-    else:
-        st.success("Herhangi bir anomali tespit edilmedi.")
+df = pd.read_csv(csv_path)
 
-# Ayırıcı
-st.divider()
+# ---------- 2) Anomali tespiti ----------
+df = label_anomalies(df)
 
-# Bölüm 2: DRL ile Kaynak Dağıtım Önerileri
-st.markdown("### 📦 Asset Dağılım Önerileri (DRL)")
-st.write("DRL modeli tarafından önerilen asset yeniden konumlandırma kararlarını görüntüleyin.")
+st.sidebar.header("Filters")
+show_anom = st.sidebar.checkbox("Sadece anomalileri göster", False)
+if show_anom:
+    df_view = df[df.is_anomaly].copy()
+else:
+    df_view = df.copy()
 
+# ---------- 3) Ana metrikler ----------
+c1, c2, c3 = st.columns(3)
+c1.metric("Toplam Service Point", len(df))
+c2.metric("Tespit edilen anomali", int(df.is_anomaly.sum()))
+c3.metric("Ortalama Utilization", f"{df.util_ratio.mean():.2f}")
+
+st.dataframe(df_view[
+    ["Service Point Name","total_kg","total_capacity_kg",
+     "util_ratio","is_anomaly","recon_error"]
+])
+
+# ---------- 4) Öneri motoru ----------
+st.header("📦 Asset Dağılım Önerileri (DRL)")
 if st.button("Önerileri Hesapla"):
-    recs = recommend_asset_reallocation()
-    if recs:
-        for rec in recs:
-            st.markdown(f"➡️ {rec}")
-    else:
-        st.info("Öneri üretilemedi veya model yüklenemedi.")
+    moves = recommend(df)
+    for m in moves:
+        st.write("➡️ ", m)
