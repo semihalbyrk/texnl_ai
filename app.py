@@ -26,25 +26,69 @@ df = pd.read_csv(csv_path)
 # ---------- 2) Anomali tespiti ----------
 df = label_anomalies(df)
 
-st.sidebar.header("Filters")
-show_anom = st.sidebar.checkbox("Sadece anomalileri göster", False)
-if show_anom:
-    df_view = df[df.is_anomaly].copy()
-else:
-    df_view = df.copy()
+# === YENİ BLOK BAŞI =========================================================
+st.sidebar.header("🔍 Filtreler")
 
-# ---------- 3) Ana metrikler ----------
-c1, c2, c3 = st.columns(3)
-c1.metric("Toplam Service Point", len(df))
-c2.metric("Tespit edilen anomali", int(df.is_anomaly.sum()))
-c3.metric("Ortalama Utilization", f"{df.util_ratio.mean():.2f}")
+f_anom   = st.sidebar.checkbox("🚨 Sadece anomaliler", False)
+f_cap    = st.sidebar.checkbox("📦 Kapasitesi > 0", True)
+min_util = st.sidebar.slider("Minimum kullanım (%)", 0, 100, 0)
+min_task = st.sidebar.slider("Min. haftalık task", 0, int(df.tasks_per_week.max()), 0)
+search   = st.sidebar.text_input("Service Point ara")
 
-st.dataframe(df_view[
-    ["Service Point Name","total_kg","total_capacity_kg",
-     "util_ratio","is_anomaly","recon_error"]
-])
+# filtre uygula
+df_view = df.copy()
+if f_anom: df_view = df_view[df_view.is_anomaly]
+if f_cap:  df_view = df_view[df_view.total_capacity_kg > 0]
+df_view = df_view[df_view.util_ratio*100 >= min_util]
+df_view = df_view[df_view.tasks_per_week >= min_task]
+if search:
+    df_view = df_view[df_view["Service Point Name"].str.contains(search, case=False, na=False)]
 
-# ---------- 4) Öneri motoru ----------
+# ---------- 3) Özet metrik kartları ----------
+c1, c2, c3, c4 = st.columns(4)
+c1.metric("Toplam SP",          len(df))
+c2.metric("Anomali sayısı",     int(df.is_anomaly.sum()))
+c3.metric("Ort. Kullanım (%)",  f"{(df.util_ratio.mean()*100):.1f}")
+c4.metric("Ort. Task Yoğun.",   f"{df.tasks_per_week.mean():.2f}")
+
+# ---------- 4) Renklendirilmiş tablo ----------
+def row_style(row):
+    if row.is_anomaly:            return ["background-color: rgba(255,0,0,0.25)"]*len(row)
+    if row.util_ratio < 0.3:      return ["background-color: rgba(220,220,220,0.25)"]*len(row)
+    if row.util_ratio > 0.9:      return ["background-color: rgba(0,255,0,0.15)"]*len(row)
+    return [""]*len(row)
+
+pretty = df_view[[
+        "Service Point Name",
+        "total_kg","total_capacity_kg",
+        "util_ratio","tasks_per_week",
+        "is_anomaly","recon_error"
+    ]].copy()
+
+pretty["util_ratio"] = (pretty.util_ratio*100).round(1)
+pretty = pretty.rename(columns={
+    "Service Point Name":"Service Point",
+    "total_kg":"Atık (kg)",
+    "total_capacity_kg":"Kapasite (kg)",
+    "util_ratio":"Kullanım (%)",
+    "tasks_per_week":"Haftalık Task",
+    "is_anomaly":"Anomali?",
+    "recon_error":"Skor"
+})
+
+styled = pretty.style.apply(row_style, axis=1).format({
+    "Atık (kg)": "{:.1f}",
+    "Kapasite (kg)": "{:.0f}",
+    "Kullanım (%)": "{:.1f}",
+    "Haftalık Task": "{:.1f}",
+    "Skor": "{:.3f}"
+})
+
+st.dataframe(styled, use_container_width=True, height=600, hide_index=True)
+st.caption("Kırmızı: anomali • Gri: düşük kullanım • Yeşil: yüksek kullanım")
+# === YENİ BLOK SONU =========================================================
+
+# ---------- 5) Öneri motoru ----------
 st.header("📦 Asset Dağılım Önerileri (DRL)")
 if st.button("Önerileri Hesapla"):
     moves = recommend(df)
