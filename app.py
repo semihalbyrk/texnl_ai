@@ -48,5 +48,7 @@ st.dataframe(df_view[
 st.write("### 📦 Asset Dağılım Önerileri (DRL)")
 st.write(" ")
 
-for rec in recommend_asset_reallocation():
+recommendations = recommend_asset_reallocation()
+for rec in recommendations:
     st.markdown(f"➡️ {rec}")
+
