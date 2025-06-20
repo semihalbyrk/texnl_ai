@@ -1,5 +1,3 @@
-# src/inference/detect_anomaly.py
-
 import torch
 import joblib
 import numpy as np
@@ -9,7 +7,7 @@ from src.models.autoencoder import BetaVAE
 
 ROOT = Path(__file__).resolve().parents[2]
 
-# ——— load VAE & scaler ———
+# 1) Load scaler & AE
 SCL = joblib.load(ROOT / "models" / "scaler.gz")
 FEATURES = [
     "tasks_per_week",
@@ -23,54 +21,49 @@ AE = BetaVAE(in_dim=len(FEATURES))
 AE.load_state_dict(torch.load(ROOT / "models" / "ae.pt"))
 AE.eval()
 
-# ——— iş kuralları eşikleri ———
+# 2) Business‐rule thresholds
 LOWER_FILL = 30.0   # %30 altı → under‐util
 UPPER_FILL = 90.0   # %90 üstü → over‐util
 
 def label_anomalies(df: pd.DataFrame,
-                    percentile: float = 90.0,
+                    percentile: float = 95.0,
                     lower_fill: float = LOWER_FILL,
                     upper_fill: float = UPPER_FILL) -> pd.DataFrame:
     """
-    1) anomaly_score = VAE reconstruction error
-    2) model_threshold = percentile’inci skor
-       model_anom = score > model_threshold
-    3) under_util = fill_pct_per_task < lower_fill
-    4) over_util  = fill_pct_per_task > upper_fill
-    5) anomaly_type = one of ["normal","model","underutil","overutil","mixed"]
-    6) is_anomaly = anomaly_type != "normal"
+    - anomaly_score: VAE reconstruction error
+    - model_threshold: percentile’inci skor
+    - is_anomaly: anomaly_score > model_threshold
+    - anomaly_type:
+       * "underutil"  if is_anomaly & fill_pct_per_task < lower_fill
+       * "overutil"   if is_anomaly & fill_pct_per_task > upper_fill
+       * "model"      if is_anomaly & fill_pct_per_task in [lower_fill,upper_fill]
+       * "normal"     otherwise
     """
 
     # — compute anomaly_score —
-    X = df[FEATURES].fillna(0)
+    X  = df[FEATURES].fillna(0)
     Xn = torch.tensor(SCL.transform(X), dtype=torch.float32)
     recon, _, _ = AE(Xn)
     err = ((Xn - recon).pow(2).mean(dim=1)
                .detach().cpu().numpy())
     df["anomaly_score"] = err
 
-    # — model‐based anomalies via percentile —
-    thresh = np.percentile(err, percentile)
-    model_anom = err > thresh
-
-    # — rule‐based under/over util —
-    under_util = df["fill_pct_per_task"] < lower_fill
-    over_util  = df["fill_pct_per_task"] > upper_fill
+    # — model‐based anomalies via percentile threshold —
+    thr = np.percentile(err, percentile)
+    is_model_anom = err > thr
+    df["is_anomaly"] = is_model_anom
 
     # — assign anomaly_type —
     types = []
-    for m, u, o in zip(model_anom, under_util, over_util):
-        flags = []
-        if m: flags.append("model")
-        if u: flags.append("underutil")
-        if o: flags.append("overutil")
-        if not flags:
+    for flag, fill in zip(is_model_anom, df["fill_pct_per_task"]):
+        if not flag:
             types.append("normal")
-        elif len(flags) == 1:
-            types.append(flags[0])
+        elif fill < lower_fill:
+            types.append("underutil")
+        elif fill > upper_fill:
+            types.append("overutil")
         else:
-            types.append("mixed")
+            types.append("model")
     df["anomaly_type"] = types
-    df["is_anomaly"]   = df["anomaly_type"] != "normal"
 
     return df
