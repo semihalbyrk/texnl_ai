@@ -21,13 +21,29 @@ if not csv_path.exists():
 
 df = pd.read_csv(csv_path)
 
-# Konteyner sayısı (asset adedi) ekle
 if "container_count" not in df.columns:
-    cnt = pd.read_csv(DATA / "assets.csv").groupby("Service Point Name")["Asset ID"].count()
-    df = df.merge(cnt.rename("container_count"), on="Service Point Name", how="left").fillna({"container_count":0})
+    assets_path = DATA / "assets.csv"
+    if assets_path.exists():
+        a = pd.read_csv(assets_path)
 
-# Utilizasyonu % olarak (≤100) hesapla
+        # service-point kolonu dump’a göre “Service Point” veya “Service Point Name”
+        sp_col = None
+        for cand in ["Service Point Name", "Service Point", "service_point"]:
+            if cand in a.columns:
+                sp_col = cand
+                break
+
+        if sp_col is not None:
+            id_col = next((c for c in a.columns if "asset" in c.lower() and "id" in c.lower()), None)
+            if id_col:
+                cnt = a.groupby(sp_col)[id_col].count().rename("container_count")
+                df = df.merge(cnt, left_on="Service Point Name", right_index=True, how="left")
+                df["container_count"] = df["container_count"].fillna(0).astype(int)
+# eğer uygun kolonlar yoksa konteyner sayısı eklenmez, kod çalışmaya devam eder
+
+# ── Utilizasyonu % olarak (0-100) hesapla ─────────────────────────────────────
 df["util_ratio"] = (df["total_kg"] / df["total_capacity_kg"].replace(0, pd.NA)).clip(0, 1).fillna(0)
+
 
 # ─── 2) Anomali etiketle ─────────────────────────────────────────────────────
 df = label_anomalies(df)
