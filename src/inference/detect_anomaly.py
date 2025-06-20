@@ -8,16 +8,15 @@ from src.models.autoencoder import BetaVAE
 
 ROOT = Path(__file__).resolve().parents[2]
 
-# Load the freshly retrained scaler and AE
+# load the freshly retrained scaler and AE
 SCL = joblib.load(ROOT / "models" / "scaler.gz")
 
-# Match the number of features you feed into the model (here we have 8):
+# 8-dimensional input (must match build_features)
 AE = BetaVAE(in_dim=8)
 AE.load_state_dict(torch.load(ROOT / "models" / "ae.pt"))
 AE.eval()
 
 def label_anomalies(df: pd.DataFrame) -> pd.DataFrame:
-    # The 8 features must match build_features.py:
     feats = [
         "total_kg",
         "total_capacity_kg",
@@ -34,7 +33,7 @@ def label_anomalies(df: pd.DataFrame) -> pd.DataFrame:
     recon, _, _ = AE(Xn)
     err = torch.mean((Xn - recon).pow(2), dim=1).detach().numpy()
 
-    # Simple threshold: μ + 2σ
+    # threshold = mean + 2*std
     thresh = err.mean() + 2 * err.std()
     df["recon_error"] = err
     df["is_anomaly"]  = err > thresh
