@@ -125,9 +125,12 @@ Below is the step-by-step workflow:
 
 2. **Deep-Learning-Based Scoring**  
    A **BetaVAE** is trained on these six features to learn normal patterns.  
-   - **Reconstruction Error** is computed for each point:  
-     $$\text{anomaly\_score} = \frac{1}{6}\sum_{i=1}^6 (x_i - \hat x_i)^2$$  
-   - A **dynamic threshold** (percentile slider) decides which errors are high enough to flag.  
+   - For each Service Point, we compute its **anomaly score** as the **mean squared reconstruction error**:  
+     *the average of squared differences between each original feature and its reconstruction*  
+     \[
+       \text{anomaly\_score} \;=\; \frac{1}{6}\sum_{i=1}^6 \bigl(x_i - \hat{x}_i\bigr)^{2}
+     \]  
+     A dynamic percentile threshold then flags which scores are unusually high.  
 
 3. **Business-Rule Overrides**  
    In addition to the model, we apply simple fill-level rules:  
