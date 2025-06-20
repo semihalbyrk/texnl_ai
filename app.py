@@ -1,13 +1,14 @@
 # app.py  — TexNL AI dashboard (Streamlit)
 import pathlib, pandas as pd, streamlit as st
+
 from src.features.build_features import build as build_features
 from src.inference.detect_anomaly import label_anomalies
 from src.inference.recommend_assets import recommend
-
+st.cache_data.clear()   # importtan sonra hemen çalışır, sonra silebilirsin
 ROOT   = pathlib.Path(__file__).resolve().parent
 DATA   = ROOT / "data"
 MODELS = ROOT / "src" / "models"
-
+st.cache_data.clear()   # importtan sonra hemen çalışır, sonra silebilirsin
 st.set_page_config(page_title="TexNL Efficiency AI", layout="wide")
 
 # ---------- 1) Veriyi hazırla & özellik tablosu üret ----------
@@ -54,10 +55,10 @@ st.divider()
 
 # ==========  RENKLENDİRME FONKSİYONU  ==========
 # -- RENKLENDİRME FONKSİYONU (cache-safe) --
-def row_style(row):
-    # sütun bulunmazsa varsayılan değerler
-    is_anom   = row.get("is_anomaly", False)
-    util_val  = row.get("util_ratio", 0.0)
+# ==========  RENKLENDİRME FONKSİYONU  ==========
+def row_style_v2(row):                #  <-- yeni isim
+    is_anom  = row.get("is_anomaly", False)
+    util_val = row.get("util_ratio", 0.0)
 
     if is_anom:
         return ["background-color: rgba(255,0,0,0.25)"] * len(row)
@@ -66,6 +67,7 @@ def row_style(row):
     if util_val > 0.9:
         return ["background-color: rgba(0,255,0,0.15)"] * len(row)
     return [""] * len(row)
+
 
 
 # Tablo – önce orijinal kolon adlarıyla stil uygula
