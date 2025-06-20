@@ -87,7 +87,7 @@ pretty = df_tab.rename(columns={
 })
 
 # 6) Highlighting
- def highlight(r):
+def highlight(r):
     if r["Anomalous?"]:
         c = "rgba(255,0,0,0.25)"
     elif r["Fill %/Container"] < 30:
