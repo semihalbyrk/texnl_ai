@@ -1,4 +1,3 @@
-# app.py  — TexNL AI dashboard (Streamlit)
 import pathlib
 import pandas as pd
 import numpy as np
@@ -13,50 +12,49 @@ ROOT = pathlib.Path(__file__).resolve().parent
 DATA = ROOT / "data"
 st.set_page_config(page_title="TexNL Efficiency AI", layout="wide")
 
-# 1) feature‐table hazırla
+# 1) Feature‐table hazırla
 csv_path = DATA / "sp_feature_table.csv"
 if not csv_path.exists():
-    st.info("CSV bulunamadı, oluşturuluyor...")
+    st.info("CSV bulunamadı, oluşturuluyor…")
     xls = pd.ExcelFile(DATA / "TexNL_Data.xlsx")
     xls.parse("Service Points").to_csv(DATA/"service_points.csv", index=False)
-    xls.parse("Assets").to_csv(DATA/"assets.csv", index=False)
-    xls.parse("Task Record").to_csv(DATA/"tasks.csv", index=False)
+    xls.parse("Assets").to_csv(DATA/"assets.csv",         index=False)
+    xls.parse("Task Record").to_csv(DATA/"tasks.csv",      index=False)
     build_features()
 df = pd.read_csv(csv_path)
 
-# 2) anomaly tag & tiplendirme
-#    slider ile percentile eşik ayarı sunuyoruz
-pct = st.sidebar.slider("Model percentile eşiği", 50, 99, 90)
-df = label_anomalies(df, percentile=pct)
+# 2) Tag anomalies & tipi
+percentile = st.sidebar.slider("Model Percentile Eşiği", 80, 99, 95)
+df = label_anomalies(df, percentile=percentile)
 
-# 3) filtreler
+# 3) Filtreler
 st.sidebar.header("🔍 Filtreler")
-f_anom      = st.sidebar.checkbox("🚨 Sadece Anomalous?", False)
-min_score   = st.sidebar.slider("Min. Anomaly Score", 0.0, float(df.anomaly_score.max()), 0.0)
-min_fill    = st.sidebar.slider("Min. Fill%/Task", 0, 100, 0)
-min_tasks   = st.sidebar.slider("Min. Weekly Tasks", 0, int(df.tasks_per_week.max()), 0)
-min_ctrs    = st.sidebar.slider("Min. Containers/SP", 0, int(df.container_count.max()), 0)
-search_sp   = st.sidebar.text_input("Service Point ara")
+f_anom     = st.sidebar.checkbox("🚨 Sadece Anomalous?", False)
+min_score  = st.sidebar.slider("Min. Anomaly Score", 0.0, float(df.anomaly_score.max()), 0.0)
+min_fill   = st.sidebar.slider("Min. Fill%/Task", 0, 100, 0)
+min_tasks  = st.sidebar.slider("Min. Weekly Tasks", 0, int(df.tasks_per_week.max()), 0)
+min_ctrs   = st.sidebar.slider("Min. Containers/SP", 0, int(df.container_count.max()), 0)
+search_sp  = st.sidebar.text_input("Service Point ara")
 
 dfv = df.copy()
-if f_anom:      dfv = dfv[dfv.is_anomaly]
+if f_anom:       dfv = dfv[dfv.is_anomaly]
 dfv = dfv[dfv.anomaly_score >= min_score]
 dfv = dfv[dfv.fill_pct_per_task >= min_fill]
-dfv = dfv[dfv.tasks_per_week     >= min_tasks]
-dfv = dfv[dfv.container_count    >= min_ctrs]
+dfv = dfv[dfv.tasks_per_week >= min_tasks]
+dfv = dfv[dfv.container_count >= min_ctrs]
 if search_sp:
     dfv = dfv[dfv["Service Point Name"].str.contains(search_sp, case=False)]
 
-# 4) KPI kartları
+# 4) KPI Kartları
 c1,c2,c3,c4 = st.columns(4)
-c1.metric("SP Sayısı",           len(dfv))
-c2.metric("Anomalous SP",        int(dfv.is_anomaly.sum()))
-c3.metric("Ort. Anomaly Score",  f"{dfv.anomaly_score.mean():.2f}")
-c4.metric("Ort. Fill%/Task",     f"{dfv.fill_pct_per_task.mean():.1f}")
+c1.metric("SP Sayısı",          len(dfv))
+c2.metric("Anomalous SP",       int(dfv.is_anomaly.sum()))
+c3.metric("Ort. Anomaly Score", f"{dfv.anomaly_score.mean():.2f}")
+c4.metric("Ort. Fill%/Task",    f"{dfv.fill_pct_per_task.mean():.1f}")
 
 st.divider()
 
-# 5) tablo
+# 5) Tablo
 cols = [
     "Service Point Name","container_count","total_capacity_kg","weekly_total_kg",
     "tasks_per_week","waste_per_task","waste_per_task_per_ctr","capacity_per_ctr",
@@ -80,9 +78,8 @@ pretty = df_tab.rename(columns={
 })
 
 def highlight(r):
-    if r["Anomalous?"]:
-        return ["background-color: rgba(255,0,0,0.2)"]*len(r)
-    return [""]*len(r)
+    return (["background-color: rgba(255,0,0,0.2)"]*len(r) 
+            if r["Anomalous?"] else [""]*len(r))
 
 styled = (
     pretty
@@ -102,7 +99,7 @@ styled = (
       })
 )
 st.dataframe(styled, use_container_width=True, height=700, hide_index=True)
-st.caption(f"🔴 Anomalous = model/underutil/overutil/mixed ({pct}p eşiği)")
+st.caption(f"🔴 Anomalous = model‐anomaly (> {percentile}p)")
 
 # 6) DRL önerileri
 st.header("📦 Asset Dağılım Önerileri (DRL)")
