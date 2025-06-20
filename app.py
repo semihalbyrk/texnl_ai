@@ -41,13 +41,11 @@ df = label_anomalies(df)  # adds: is_anomaly, recon_error
 # ────────────────────────────────────────────────────────────────
 # 3) Compute weekly‐waste & per‐container waste
 # ────────────────────────────────────────────────────────────────
-# weekly waste ≈ avg_kg * tasks_per_week
 df["weekly_waste_kg"] = df["avg_kg"].fillna(0) * df["tasks_per_week"].fillna(0)
-# per-container weekly waste
 df["waste_per_container"] = (
     df["weekly_waste_kg"]
       .div(df["container_count"].replace(0, np.nan))
-      .fillna(df["weekly_waste_kg"])  # if 0 container, show total
+      .fillna(df["weekly_waste_kg"])
       .round(1)
 )
 
@@ -55,12 +53,12 @@ df["waste_per_container"] = (
 # 4) Sidebar filters
 # ────────────────────────────────────────────────────────────────
 st.sidebar.header("🔍 Filtreler")
-filter_anom  = st.sidebar.checkbox("🚨 Sadece Anomalous?", False)
-filter_cap   = st.sidebar.checkbox("📦 Kapasite > 0",       True)
-min_weekly   = st.sidebar.slider("Min. Weekly Fill (%)",   0, 100, 0)
-min_tasks    = st.sidebar.slider("Min. Weekly Tasks",       0, int(df.tasks_per_week.max()), 0)
-min_cont     = st.sidebar.slider("Min. Container Count",    0, int(df.container_count.max()), 0)
-search       = st.sidebar.text_input("Service Point ara")
+filter_anom = st.sidebar.checkbox("🚨 Sadece Anomalous?", False)
+filter_cap  = st.sidebar.checkbox("📦 Kapasite > 0",     True)
+min_weekly  = st.sidebar.slider("Min. Weekly Fill (%)", 0, 100, 0)
+min_tasks   = st.sidebar.slider("Min. Weekly Tasks",     0, int(df.tasks_per_week.max()), 0)
+min_cont    = st.sidebar.slider("Min. Containers/SP",    0, int(df.container_count.max()), 0)
+search      = st.sidebar.text_input("Service Point ara")
 
 df_view = df.copy()
 if filter_anom:
@@ -79,27 +77,13 @@ if search:
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Service Point Sayısı",      len(df_view))
 c2.metric("Anomalous SP",              int(df_view.is_anomaly.sum()))
-c3.metric("Ortalama Weekly Fill (%)",  f"{df_view.weekly_fill_pct.mean():.1f}")
+c3.metric("Ortalama Weekly Fill (%)",  f"{(df_view.weekly_fill_pct*100).mean():.1f}")
 c4.metric("Ortalama Containers/SP",    f"{df_view.container_count.mean():.1f}")
 
 st.divider()
 
 # ────────────────────────────────────────────────────────────────
-# 6) Row‐highlighting (model anomaly + fill thresholds)
-# ────────────────────────────────────────────────────────────────
-def highlight_row(r):
-    if r["is_anomaly"]:
-        color = "rgba(255,0,0,0.25)"
-    elif r["weekly_fill_pct"] < 0.30:
-        color = "rgba(220,220,220,0.25)"
-    elif r["weekly_fill_pct"] > 0.90:
-        color = "rgba(0,255,0,0.15)"
-    else:
-        color = ""
-    return [f"background-color: {color}"] * len(r)
-
-# ────────────────────────────────────────────────────────────────
-# 7) Table build & display
+# 6) Prepare table
 # ────────────────────────────────────────────────────────────────
 cols = [
     "Service Point Name",
@@ -115,7 +99,6 @@ cols = [
     "recon_error",
     "is_anomaly",
 ]
-
 df_tab = df_view[[c for c in cols if c in df_view.columns]].copy()
 
 pretty = df_tab.rename(columns={
@@ -133,21 +116,35 @@ pretty = df_tab.rename(columns={
     "is_anomaly":          "Anomalous?",
 })
 
+# ────────────────────────────────────────────────────────────────
+# 7) Row‐highlighting with the renamed columns
+# ────────────────────────────────────────────────────────────────
+def highlight_row(r):
+    if r["Anomalous?"]:
+        color = "rgba(255,0,0,0.25)"
+    elif r["Weekly Fill (%)"] < 30:
+        color = "rgba(220,220,220,0.25)"
+    elif r["Weekly Fill (%)"] > 90:
+        color = "rgba(0,255,0,0.15)"
+    else:
+        color = ""
+    return [f"background-color: {color}"] * len(r)
+
 styled = (
     pretty
       .style
       .apply(highlight_row, axis=1)
       .format({
-         "Containers":             "{:d}",
-         "Capacity (kg)":           "{:,.0f}",
-         "Total Waste (kg)":        "{:,.1f}",
-         "Avg Waste/Task (kg)":     "{:,.1f}",
-         "Weekly Tasks":            "{:,.1f}",
-         "Weekly Fill (%)":         "{:.1%}",
-         "Avg Fill (%)":            "{:.1%}",
-         "Weekly Waste (kg)":       "{:,.1f}",
-         "Waste/Container (kg)":    "{:,.1f}",
-         "Anomaly Score":           "{:.3f}",
+         "Containers":            "{:d}",
+         "Capacity (kg)":          "{:,.0f}",
+         "Total Waste (kg)":       "{:,.1f}",
+         "Avg Waste/Task (kg)":    "{:,.1f}",
+         "Weekly Tasks":           "{:,.1f}",
+         "Weekly Fill (%)":        "{:.1f}",
+         "Avg Fill (%)":           "{:.1f}",
+         "Weekly Waste (kg)":      "{:,.1f}",
+         "Waste/Container (kg)":   "{:.1f}",
+         "Anomaly Score":          "{:.3f}",
       })
 )
 
