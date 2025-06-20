@@ -43,6 +43,11 @@ df_view = df_view[df_view.tasks_per_week >= min_task]
 if search:
     df_view = df_view[df_view["Service Point Name"].str.contains(search, case=False, na=False)]
 
+# ===== DEBUG: sütunları ve ilk satırı kontrol et =================
+st.write("DEBUG cols:", df_view.columns.tolist())
+st.write("DEBUG head:", df_view.head(1))
+# =================================================================
+
 # ==========  METRİK KARTLARI  ==========
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Toplam SP", len(df))
@@ -53,13 +58,10 @@ c4.metric("Ort. Task Yoğunluğu", f"{df.tasks_per_week.mean():.2f}")
 st.divider()
 
 # ==========  RENKLENDİRME FONKSİYONU  ==========
-# -- RENKLENDİRME FONKSİYONU (cache-safe) --
-# ==========  RENKLENDİRME FONKSİYONU  ==========
-# ==========  RENKLENDİRME FONKSİYONU  ==========
-def highlight_row(row):                 #  <-- YENİ İSİM
+
+def highlight_row(row):
     anom = row.get("is_anomaly", False)
     util = row.get("util_ratio", 0.0)
-
     if anom:
         return ["background-color: rgba(255,0,0,0.25)"] * len(row)
     if util < 0.30:
