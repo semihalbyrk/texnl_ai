@@ -71,7 +71,6 @@ pretty = df_tab.rename(columns={
   "waste_per_task_per_ctr": "Waste/Task/Ctr (kg)",
   "capacity_per_ctr":       "Capacity/Ctr (kg)",
   "fill_pct_per_task":      "Fill%/Task",
-  "fill_pct_weekly":        "Fill%/Weekly",
   "anomaly_score":          "Anomaly Score",
   "anomaly_type":           "Anomaly Type",
   "is_anomaly":             "Anomalous?",
@@ -106,3 +105,42 @@ st.header("📦 Asset Dağılım Önerileri (DRL)")
 if st.button("Önerileri Hesapla"):
     for mv in recommend(dfv):
         st.write("➡️", mv)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# How It Works (Detailed)
+# ──────────────────────────────────────────────────────────────────────
+st.markdown("---")
+st.markdown("## How It Works")
+st.markdown("""
+This dashboard leverages a **Beta-Variational Autoencoder (BetaVAE)** to detect anomalous Service Points.  
+Below is the step-by-step workflow:
+
+1. **Feature Extraction**  
+   We compute six normalized metrics per Service Point:  
+   - **Weekly Tasks**: Average number of weekly visits.  
+   - **Waste/Task (kg)**: Average kilograms of waste collected per visit.  
+   - **Waste/Task/Ctr (kg)**: Waste/Task normalized by container count.  
+   - **Capacity/Ctr (kg)**: Average capacity per container.  
+   - **Fill%/Task (%)**: (Waste/Task ÷ Capacity/Ctr) × 100.   
+
+2. **Deep-Learning-Based Scoring**  
+   A **BetaVAE** is trained on these six features to learn normal patterns.  
+   - **Reconstruction Error** is computed for each point:  
+     $$\text{anomaly\_score} = \frac{1}{6}\sum_{i=1}^6 (x_i - \hat x_i)^2$$  
+   - A **dynamic threshold** (percentile slider) decides which errors are high enough to flag.  
+
+3. **Business-Rule Overrides**  
+   In addition to the model, we apply simple fill-level rules:  
+   - **underutil** if Fill%/Task < 30% **and** container_count > 1  
+   - **overutil**  if Fill%/Task > 90% **and** container_count ≤ 1  
+
+4. **Final Anomaly Type**  
+   Each Service Point is labeled:  
+   - `_model_`      → only VAE-based anomaly  
+   - `_underutil_`  → under-utilized by business rule  
+   - `_overutil_`   → over-utilized by business rule  
+
+**Business Value:** You can immediately spot which sites are collecting too little or too much waste relative to their container infrastructure—enabling dynamic re-allocation of assets and routes.
+""")
+
