@@ -43,10 +43,6 @@ df_view = df_view[df_view.tasks_per_week >= min_task]
 if search:
     df_view = df_view[df_view["Service Point Name"].str.contains(search, case=False, na=False)]
 
-# ===== DEBUG: sütunları ve ilk satırı kontrol et =================
-st.write("DEBUG cols:", df_view.columns.tolist())
-st.write("DEBUG head:", df_view.head(1))
-# =================================================================
 
 # ==========  METRİK KARTLARI  ==========
 c1, c2, c3, c4 = st.columns(4)
