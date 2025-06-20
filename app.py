@@ -124,7 +124,7 @@ Below is the step-by-step workflow:
    - **Fill%/Task (%)**: (Waste/Task ÷ Capacity/Ctr) × 100.   
 
 2. **Deep-Learning-Based Scoring**  
-   A **BetaVAE** is trained on these six features to learn normal patterns.  
+   A **BetaVAE** is trained on these five features to learn normal patterns.  
    - For each Service Point, we compute its **anomaly score** as the **mean squared reconstruction error**:  
      *the average of squared differences between each original feature and its reconstruction*  
      A dynamic percentile threshold then flags which scores are unusually high.  
