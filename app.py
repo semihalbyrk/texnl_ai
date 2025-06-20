@@ -58,7 +58,7 @@ st.divider()
 cols = [
   "Service Point Name","container_count","total_capacity_kg","weekly_total_kg",
   "tasks_per_week","waste_per_task","waste_per_task_per_ctr","capacity_per_ctr",
-  "fill_pct_per_task","fill_pct_weekly","anomaly_score","anomaly_type","is_anomaly"
+  "fill_pct_per_task","anomaly_score","anomaly_type","is_anomaly"
 ]
 df_tab = dfv[[c for c in cols if c in dfv.columns]].copy()
 pretty = df_tab.rename(columns={
@@ -92,7 +92,6 @@ styled = (
         "Waste/Task/Ctr (kg)":     "{:.1f}",
         "Capacity/Ctr (kg)":       "{:,.0f}",
         "Fill%/Task":              "{:.1f}",
-        "Fill%/Weekly":            "{:.1f}",
         "Anomaly Score":           "{:.3f}",
       })
 )
