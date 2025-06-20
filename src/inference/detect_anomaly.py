@@ -2,16 +2,15 @@
 
 import torch
 import joblib
+import numpy as np
 import pandas as pd
 from pathlib import Path
 from src.models.autoencoder import BetaVAE
 
 ROOT = Path(__file__).resolve().parents[2]
 
-# 1) Load freshly‐trained scaler & AE
+# ——— load VAE & scaler ———
 SCL = joblib.load(ROOT / "models" / "scaler.gz")
-
-# 2) Tam olarak 6 özellik kullanıyoruz:
 FEATURES = [
     "tasks_per_week",
     "waste_per_task",
@@ -20,43 +19,58 @@ FEATURES = [
     "fill_pct_per_task",
     "fill_pct_weekly",
 ]
-
 AE = BetaVAE(in_dim=len(FEATURES))
 AE.load_state_dict(torch.load(ROOT / "models" / "ae.pt"))
 AE.eval()
 
-# 3) İş kuralları için eşikler
-LOWER_FILL = 30.0   # %30’un altı → düşük doluluk
-UPPER_FILL = 90.0   # %90’ın üstü → yüksek doluluk
+# ——— iş kuralları eşikleri ———
+LOWER_FILL = 30.0   # %30 altı → under‐util
+UPPER_FILL = 90.0   # %90 üstü → over‐util
 
 def label_anomalies(df: pd.DataFrame,
-                    lower_fill_pct: float = LOWER_FILL,
-                    upper_fill_pct: float = UPPER_FILL) -> pd.DataFrame:
+                    percentile: float = 90.0,
+                    lower_fill: float = LOWER_FILL,
+                    upper_fill: float = UPPER_FILL) -> pd.DataFrame:
     """
-    1) model_anom  : VAE reconstruct error > μ + 1σ  (daha duyarlı)
-    2) under_util  : fill_pct_per_task < lower_fill_pct
-    3) over_util   : fill_pct_per_task > upper_fill_pct
-    4) Sonuç: herhangi biri True ise is_anomaly=True
+    1) anomaly_score = VAE reconstruction error
+    2) model_threshold = percentile’inci skor
+       model_anom = score > model_threshold
+    3) under_util = fill_pct_per_task < lower_fill
+    4) over_util  = fill_pct_per_task > upper_fill
+    5) anomaly_type = one of ["normal","model","underutil","overutil","mixed"]
+    6) is_anomaly = anomaly_type != "normal"
     """
 
-    # ——— 1) Model‐temelli anomaly_score & eşik ———
+    # — compute anomaly_score —
     X = df[FEATURES].fillna(0)
     Xn = torch.tensor(SCL.transform(X), dtype=torch.float32)
     recon, _, _ = AE(Xn)
     err = ((Xn - recon).pow(2).mean(dim=1)
                .detach().cpu().numpy())
-
-    # dynamic threshold: μ + 1*σ (daha agresif yakalama için 2 yerine 1)
-    thresh = err.mean() + err.std()
-    model_anom = err > thresh
-
     df["anomaly_score"] = err
 
-    # ——— 2) Doluluk‐temelli anomalies (container sayısına bakmayız) ———
-    under_util = df["fill_pct_per_task"] < lower_fill_pct
-    over_util  = df["fill_pct_per_task"] > upper_fill_pct
+    # — model‐based anomalies via percentile —
+    thresh = np.percentile(err, percentile)
+    model_anom = err > thresh
 
-    # ——— 3) Sonuç: model veya kuralsal anomali ———
-    df["is_anomaly"] = model_anom | under_util | over_util
+    # — rule‐based under/over util —
+    under_util = df["fill_pct_per_task"] < lower_fill
+    over_util  = df["fill_pct_per_task"] > upper_fill
+
+    # — assign anomaly_type —
+    types = []
+    for m, u, o in zip(model_anom, under_util, over_util):
+        flags = []
+        if m: flags.append("model")
+        if u: flags.append("underutil")
+        if o: flags.append("overutil")
+        if not flags:
+            types.append("normal")
+        elif len(flags) == 1:
+            types.append(flags[0])
+        else:
+            types.append("mixed")
+    df["anomaly_type"] = types
+    df["is_anomaly"]   = df["anomaly_type"] != "normal"
 
     return df
