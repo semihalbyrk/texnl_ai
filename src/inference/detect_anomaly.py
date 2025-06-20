@@ -57,7 +57,7 @@ def label_anomalies(df: pd.DataFrame,
         elif fill > upper_fill:
             types.append("overutil")
         else:
-            types.append("model")
+            types.append("mixed")
 
     df["anomaly_type"] = types
     df["is_anomaly"]  = df["anomaly_type"] != "normal"
