@@ -53,14 +53,20 @@ c4.metric("Ort. Task Yoğunluğu", f"{df.tasks_per_week.mean():.2f}")
 st.divider()
 
 # ==========  RENKLENDİRME FONKSİYONU  ==========
+# -- RENKLENDİRME FONKSİYONU (cache-safe) --
 def row_style(row):
-    if row["is_anomaly"]:              # <— attr yerine dizi erişimi
+    # sütun bulunmazsa varsayılan değerler
+    is_anom   = row.get("is_anomaly", False)
+    util_val  = row.get("util_ratio", 0.0)
+
+    if is_anom:
         return ["background-color: rgba(255,0,0,0.25)"] * len(row)
-    if row["util_ratio"] < 0.3:
+    if util_val < 0.3:
         return ["background-color: rgba(220,220,220,0.25)"] * len(row)
-    if row["util_ratio"] > 0.9:
+    if util_val > 0.9:
         return ["background-color: rgba(0,255,0,0.15)"] * len(row)
     return [""] * len(row)
+
 
 # Tablo – önce orijinal kolon adlarıyla stil uygula
 pretty = df_view[
