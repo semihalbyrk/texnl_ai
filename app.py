@@ -72,7 +72,7 @@ def highlight_row(row):
 
 
 
-# Tablo – önce orijinal kolon adlarıyla stil uygula
+# --- tablo hazırlığı -------------------------------------------------
 pretty = df_view[
     [
         "Service Point Name",
@@ -87,27 +87,33 @@ pretty = df_view[
 
 pretty["util_ratio"] = (pretty.util_ratio * 100).round(1)
 
+# 1️⃣ Kolon adlarını burada değiştir
+pretty = pretty.rename(columns={
+    "Service Point Name": "Service Point",
+    "total_kg": "Atık (kg)",
+    "total_capacity_kg": "Kapasite (kg)",
+    "util_ratio": "Kullanım (%)",
+    "tasks_per_week": "Haftalık Task",
+    "is_anomaly": "Anomali?",
+    "recon_error": "Skor",
+})
+
+# 2️⃣ Sonra Styler zincirini uygula
 styled = (
     pretty
       .style
-      .apply(highlight_row, axis=1)     #  <-- highlight_row
+      .apply(highlight_row, axis=1)
       .format({
-          "total_kg": "{:.1f}",
-          "total_capacity_kg": "{:.0f}",
-          "util_ratio": "{:.1f}",
-          "tasks_per_week": "{:.1f}",
-          "recon_error": "{:.3f}",
-      })
-      .rename(columns={
-          "Service Point Name": "Service Point",
-          "total_kg": "Atık (kg)",
-          "total_capacity_kg": "Kapasite (kg)",
-          "util_ratio": "Kullanım (%)",
-          "tasks_per_week": "Haftalık Task",
-          "is_anomaly": "Anomali?",
-          "recon_error": "Skor",
+          "Atık (kg)": "{:.1f}",
+          "Kapasite (kg)": "{:.0f}",
+          "Kullanım (%)": "{:.1f}",
+          "Haftalık Task": "{:.1f}",
+          "Skor": "{:.3f}",
       })
 )
+
+st.dataframe(styled, use_container_width=True, height=600, hide_index=True)
+
 
 
 st.dataframe(styled, use_container_width=True, height=600, hide_index=True)
