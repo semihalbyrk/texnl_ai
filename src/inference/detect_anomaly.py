@@ -25,42 +25,38 @@ AE = BetaVAE(in_dim=len(FEATURES))
 AE.load_state_dict(torch.load(ROOT / "models" / "ae.pt"))
 AE.eval()
 
-# 3) İş kurallarınız için varsayılan eşikler (yüzde cinsinden)
-LOWER_FILL = 30.0   # %30’un altı → düşük doluluk → under‐utilized
-UPPER_FILL = 90.0   # %90’ın üstü → yüksek doluluk → over‐utilized
+# 3) İş kuralları için eşikler
+LOWER_FILL = 30.0   # %30’un altı → düşük doluluk
+UPPER_FILL = 90.0   # %90’ın üstü → yüksek doluluk
 
 def label_anomalies(df: pd.DataFrame,
                     lower_fill_pct: float = LOWER_FILL,
                     upper_fill_pct: float = UPPER_FILL) -> pd.DataFrame:
     """
-    - model_anom: VAE reconstruct error > μ + 2σ
-    - under_util: fill_pct_per_task < lower_fill_pct  AND container_count > 1
-    - over_util:  fill_pct_per_task > upper_fill_pct  AND container_count <= 1
+    1) model_anom  : VAE reconstruct error > μ + 1σ  (daha duyarlı)
+    2) under_util  : fill_pct_per_task < lower_fill_pct
+    3) over_util   : fill_pct_per_task > upper_fill_pct
+    4) Sonuç: herhangi biri True ise is_anomaly=True
     """
 
-    # --- 1) Model‐temelli anomaly_score & eşik
+    # ——— 1) Model‐temelli anomaly_score & eşik ———
     X = df[FEATURES].fillna(0)
     Xn = torch.tensor(SCL.transform(X), dtype=torch.float32)
     recon, _, _ = AE(Xn)
     err = ((Xn - recon).pow(2).mean(dim=1)
                .detach().cpu().numpy())
 
-    thresh = err.mean() + 2 * err.std()
+    # dynamic threshold: μ + 1*σ (daha agresif yakalama için 2 yerine 1)
+    thresh = err.mean() + err.std()
     model_anom = err > thresh
 
     df["anomaly_score"] = err
 
-    # --- 2) Kural‐temelli anomalies
-    under_util = (
-        (df["fill_pct_per_task"] < lower_fill_pct) &
-        (df["container_count"]    > 1)
-    )
-    over_util  = (
-        (df["fill_pct_per_task"] > upper_fill_pct) &
-        (df["container_count"]    <= 1)
-    )
+    # ——— 2) Doluluk‐temelli anomalies (container sayısına bakmayız) ———
+    under_util = df["fill_pct_per_task"] < lower_fill_pct
+    over_util  = df["fill_pct_per_task"] > upper_fill_pct
 
-    # --- 3) Sonuç: hem VAE hem business‐rule
+    # ——— 3) Sonuç: model veya kuralsal anomali ———
     df["is_anomaly"] = model_anom | under_util | over_util
 
     return df
