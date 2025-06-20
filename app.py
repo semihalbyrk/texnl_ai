@@ -4,7 +4,6 @@ import pathlib, pandas as pd, streamlit as st
 from src.features.build_features import build as build_features
 from src.inference.detect_anomaly import label_anomalies
 from src.inference.recommend_assets import recommend
-st.cache_data.clear()   # importtan sonra hemen çalışır, sonra silebilirsin
 ROOT   = pathlib.Path(__file__).resolve().parent
 DATA   = ROOT / "data"
 MODELS = ROOT / "src" / "models"
