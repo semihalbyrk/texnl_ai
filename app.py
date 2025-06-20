@@ -56,15 +56,16 @@ st.divider()
 # ==========  RENKLENDİRME FONKSİYONU  ==========
 # -- RENKLENDİRME FONKSİYONU (cache-safe) --
 # ==========  RENKLENDİRME FONKSİYONU  ==========
-def row_style_v2(row):                #  <-- yeni isim
-    is_anom  = row.get("is_anomaly", False)
-    util_val = row.get("util_ratio", 0.0)
+# ==========  RENKLENDİRME FONKSİYONU  ==========
+def highlight_row(row):                 #  <-- YENİ İSİM
+    anom = row.get("is_anomaly", False)
+    util = row.get("util_ratio", 0.0)
 
-    if is_anom:
+    if anom:
         return ["background-color: rgba(255,0,0,0.25)"] * len(row)
-    if util_val < 0.3:
+    if util < 0.30:
         return ["background-color: rgba(220,220,220,0.25)"] * len(row)
-    if util_val > 0.9:
+    if util > 0.90:
         return ["background-color: rgba(0,255,0,0.15)"] * len(row)
     return [""] * len(row)
 
@@ -86,28 +87,27 @@ pretty = df_view[
 pretty["util_ratio"] = (pretty.util_ratio * 100).round(1)
 
 styled = (
-    pretty.style.apply(row_style, axis=1)
-    .format(
-        {
-            "total_kg": "{:.1f}",
-            "total_capacity_kg": "{:.0f}",
-            "util_ratio": "{:.1f}",
-            "tasks_per_week": "{:.1f}",
-            "recon_error": "{:.3f}",
-        }
-    )
-    .rename(
-        columns={
-            "Service Point Name": "Service Point",
-            "total_kg": "Atık (kg)",
-            "total_capacity_kg": "Kapasite (kg)",
-            "util_ratio": "Kullanım (%)",
-            "tasks_per_week": "Haftalık Task",
-            "is_anomaly": "Anomali?",
-            "recon_error": "Skor",
-        }
-    )
+    pretty
+      .style
+      .apply(highlight_row, axis=1)     #  <-- highlight_row
+      .format({
+          "total_kg": "{:.1f}",
+          "total_capacity_kg": "{:.0f}",
+          "util_ratio": "{:.1f}",
+          "tasks_per_week": "{:.1f}",
+          "recon_error": "{:.3f}",
+      })
+      .rename(columns={
+          "Service Point Name": "Service Point",
+          "total_kg": "Atık (kg)",
+          "total_capacity_kg": "Kapasite (kg)",
+          "util_ratio": "Kullanım (%)",
+          "tasks_per_week": "Haftalık Task",
+          "is_anomaly": "Anomali?",
+          "recon_error": "Skor",
+      })
 )
+
 
 st.dataframe(styled, use_container_width=True, height=600, hide_index=True)
 st.caption("Kırmızı = anomali • Gri = düşük kullanım • Yeşil = yüksek kullanım")
