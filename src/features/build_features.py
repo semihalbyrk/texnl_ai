@@ -6,14 +6,18 @@ DATA = ROOT / "data"
 OUT  = DATA / "sp_feature_table.csv"
 
 def build():
-    # 1) Read raw tables
+    # 1) read raw
     sp   = pd.read_csv(DATA / "service_points.csv")
     ass  = pd.read_csv(DATA / "assets.csv")
     task = pd.read_csv(DATA / "tasks.csv")
     task["Date"] = pd.to_datetime(task["Date"], errors="coerce")
     task = task.dropna(subset=["Date"])
 
-    # 2) Total capacity per SP
+    # 2) compute total_days & weeks (you said: use 01.01.2024–18.06.2025 = 532 days)
+    total_days = 532
+    weeks = total_days / 7
+
+    # 3) capacity per SP
     cap = (
         ass
         .groupby("Location Details")["Weight Capacity"]
@@ -22,86 +26,89 @@ def build():
         .reset_index()
     )
 
-    # 3) Waste aggregates (kg vs pcs)
-    kg  = task[task["Item UOM"] == 'kg']
-    pcs = task[task["Item UOM"] == 'pcs']
-    agg = (
+    # 4) waste aggregates
+    kg  = task[task["Item UOM"] == "kg"]
+    pcs = task[task["Item UOM"] == "pcs"]
+
+    agg_kg = (
         kg
         .groupby("Service Point")["Actual Amount (Item)"]
-        .agg(total_kg="sum", avg_kg="mean")
-        .reset_index()
-        .merge(
-            pcs
-            .groupby("Service Point")["Actual Amount (Item)"]
-            .agg(total_bags="sum", avg_bags="mean")
-            .reset_index(),
-            on='Service Point', how='outer'
-        )
-        .fillna(0)
+        .sum()
+        .rename("total_kg")
+    )
+    agg_pcs = (
+        pcs
+        .groupby("Service Point")["Actual Amount (Item)"]
+        .sum()
+        .rename("total_bags")
     )
 
-    # 4) Weekly task frequency
-    total_days = (task["Date"].max() - task["Date"].min()).days + 1
-    weeks      = max(total_days / 7, 1)
+    # 5) weekly totals
+    weekly = (
+        agg_kg.div(weeks)
+        .to_frame("weekly_total_kg")
+        .join(
+            agg_pcs.div(weeks).to_frame("weekly_total_bags"),
+            how="outer"
+        )
+        .fillna(0)
+        .reset_index().rename(columns={"Service Point":"Service Point Name"})
+    )
+
+    # 6) tasks per week
     freq = (
         task
         .groupby("Service Point")
         .size()
         .div(weeks)
         .rename("tasks_per_week")
-        .reset_index()
+        .reset_index().rename(columns={"Service Point":"Service Point Name"})
     )
 
-    # 5) Merge everything
+    # 7) merge
     df = (
-        sp
-        .merge(cap,  left_on="Service Point Name", right_on="Location Details", how="left")
-        .merge(agg,  left_on="Service Point Name", right_on="Service Point",      how="left")
-        .merge(freq, left_on="Service Point Name", right_on="Service Point",      how="left")
+        sp.rename(columns={"Service Point Name":"Service Point Name"})
+        .merge(cap,    left_on="Service Point Name", right_on="Location Details", how="left")
+        .merge(weekly, on="Service Point Name",                       how="left")
+        .merge(freq,   on="Service Point Name",                       how="left")
         .fillna(0)
     )
 
-    # 6) Container count
+    # 8) container count
     cnt = (
         ass["Location Details"]
         .value_counts()
         .rename("container_count")
         .reset_index()
-        .rename(columns={"index": "Location Details"})
+        .rename(columns={"index":"Location Details"})
     )
     df = df.merge(cnt, on="Location Details", how="left")
     df["container_count"] = df["container_count"].fillna(0).astype(int)
 
-    # 7) Container‐normalized metrics
-    # capacity per container
-    df["capacity_per_container"] = (
+    # 9) normalized per-task/container
+    df["waste_per_task"]         = (df["weekly_total_kg"] / df["tasks_per_week"]).fillna(0)
+    df["waste_per_task_per_ctr"] = (
+        df["weekly_total_kg"]
+        .div(df["tasks_per_week"] * df["container_count"])
+        .fillna(0)
+    )
+    df["capacity_per_ctr"]       = (
         df["total_capacity_kg"]
         .div(df["container_count"].replace(0,1))
     )
-    # waste per container
-    df["waste_per_container"] = (
-        df["total_kg"]
-        .div(df["container_count"].replace(0,1))
+    df["fill_pct_per_task"]      = (
+        df["waste_per_task"]
+        .div(df["capacity_per_ctr"])
+        .fillna(0)
+        .clip(0,1) * 100
     )
-    # tasks per container
-    df["tasks_per_container"] = (
-        df["tasks_per_week"]
-        .div(df["container_count"].replace(0,1))
-    )
-    # waste per task per container
-    denom = (df["tasks_per_week"] * df["container_count"]).replace(0,1)
-    df["waste_per_task_per_container"] = df["total_kg"].div(denom)
-    # fill % per container
-    df["fill_pct_per_container"] = (
-        df["waste_per_container"]
-        .div(df["capacity_per_container"].replace(0,1))
-        .clip(0,1)
-        * 100
+    df["fill_pct_weekly"]        = (
+        df["weekly_total_kg"]
+        .div(df["capacity_per_ctr"] * df["tasks_per_week"])
+        .fillna(0)
+        .clip(0,1) * 100
     )
 
-    # 8) Persist
+    # 10) save
     df.to_csv(OUT, index=False)
-    print(f"✅ Feature table saved → {OUT}")
-
-if __name__ == "__main__":
-    build()
+    print(f"✅ Feature table saved to {OUT}")
