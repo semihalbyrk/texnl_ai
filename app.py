@@ -24,7 +24,7 @@ st.set_page_config(page_title="TexNL Efficiency AI", layout="wide")
 # ────────────────────────────────────────────────────────────────
 csv_path = DATA / "sp_feature_table.csv"
 if not csv_path.exists():
-    st.info("CSV bulunamadı ➜ Excel’den CSV oluşturuluyor…")
+    st.info("CSV bulunamadı ➜ Excel’den CSV’ler oluşturuluyor…")
     xls = pd.ExcelFile(DATA / "TexNL_Data.xlsx")
     xls.parse("Service Points").to_csv(DATA / "service_points.csv", index=False)
     xls.parse("Assets").to_csv(DATA / "assets.csv", index=False)
@@ -44,37 +44,39 @@ df["util_ratio"] = (
 )
 
 # ────────────────────────────────────────────────────────────────
-# 2.5) Anomali tespiti (autoencoder)
+# 3) Anomali tespiti (autoencoder)
 # ────────────────────────────────────────────────────────────────
 df = label_anomalies(df)  # ekler: is_anomaly (bool), recon_error (float)
 
 # ────────────────────────────────────────────────────────────────
-# 2.7) Konteyner (asset) sayısı ekle
+# 4) Konteyner sayısını ekle (Assets.csv → Location Details)
 # ────────────────────────────────────────────────────────────────
-if "container_count" not in df.columns:
-    assets_csv = DATA / "assets.csv"
-    if assets_csv.exists():
-        a = pd.read_csv(assets_csv)
-        if "Location Details" in a.columns:
-            cnt = a.groupby("Location Details").size().rename("container_count")
-            df = df.merge(
-                cnt, left_on="Service Point Name", right_index=True, how="left"
-            )
-    df["container_count"] = df.get("container_count", 0).fillna(0).astype(int)
+assets_csv = DATA / "assets.csv"
+if assets_csv.exists():
+    a = pd.read_csv(assets_csv)
+    if "Location Details" in a.columns:
+        cnt = a["Location Details"].value_counts().rename("container_count")
+        df["container_count"] = df["Service Point Name"].map(cnt).fillna(0).astype(int)
+    else:
+        df["container_count"] = 0
+else:
+    df["container_count"] = 0
 
 # ────────────────────────────────────────────────────────────────
-# 3) Sidebar filtreleri
+# 5) Sidebar filtreleri
 # ────────────────────────────────────────────────────────────────
 st.sidebar.header("🔍 Filtreler")
-if st.sidebar.checkbox("🚨 Yalnızca anomaliler"):
+if st.sidebar.checkbox("🚨 Sadece anomaliler"):
     df = df[df.is_anomaly]
 if st.sidebar.checkbox("📦 Kapasite > 0", True):
     df = df[df.total_capacity_kg > 0]
 
-min_util = st.sidebar.slider("Min. Kullanım (%)", 0, 100, 0)
+min_util = st.sidebar.slider("Minimum Kullanım (%)", 0, 100, 0)
 df = df[df.util_ratio * 100 >= min_util]
 
-min_task = st.sidebar.slider("Min. Haftalık Task", 0, int(df.tasks_per_week.max()), 0)
+min_task = st.sidebar.slider(
+    "Min. Haftalık Task", 0, int(df.tasks_per_week.max()), 0
+)
 df = df[df.tasks_per_week >= min_task]
 
 search = st.sidebar.text_input("Service Point ara")
@@ -82,7 +84,7 @@ if search:
     df = df[df["Service Point Name"].str.contains(search, case=False, na=False)]
 
 # ────────────────────────────────────────────────────────────────
-# 4) KPI Kartları
+# 6) KPI Kartları
 # ────────────────────────────────────────────────────────────────
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Toplam SP",           len(df))
@@ -93,7 +95,7 @@ c4.metric("Ort. Task Yoğunluğu", f"{df.tasks_per_week.mean():.2f}")
 st.divider()
 
 # ────────────────────────────────────────────────────────────────
-# 5) Renklendirme fonksiyonu
+# 7) Renklendirme fonksiyonu
 # ────────────────────────────────────────────────────────────────
 def highlight_row(r):
     if r["is_anomaly"]:
@@ -107,7 +109,7 @@ def highlight_row(r):
     return [f"background-color: {color}"] * len(r)
 
 # ────────────────────────────────────────────────────────────────
-# 6) Tablo hazırlığı & gösterimi
+# 8) Tablo hazırlığı & gösterimi
 # ────────────────────────────────────────────────────────────────
 pretty = df[[
     "Service Point Name",
@@ -120,19 +122,19 @@ pretty = df[[
     "recon_error",
 ]].copy()
 
-# Yüzdeyi 0–100’e çevir
+# yüzdelik değeri 0–100 aralığında göster
 pretty["util_ratio"] = (pretty["util_ratio"] * 100).round(1)
 
-# Kolon başlıklarını Türkçeleştir
+# kolon başlıklarını Türkçeleştir
 pretty = pretty.rename(columns={
-    "Service Point Name":   "Service Point",
-    "container_count":      "Konteyner Sayısı",
-    "total_kg":             "Atık (kg)",
-    "total_capacity_kg":    "Kapasite (kg)",
-    "util_ratio":           "Kullanım (%)",
-    "tasks_per_week":       "Haftalık Task",
-    "is_anomaly":           "Anomali?",
-    "recon_error":          "Skor",
+    "Service Point Name": "Service Point",
+    "container_count":     "Konteyner Sayısı",
+    "total_kg":            "Atık (kg)",
+    "total_capacity_kg":   "Kapasite (kg)",
+    "util_ratio":          "Kullanım (%)",
+    "tasks_per_week":      "Haftalık Task",
+    "is_anomaly":          "Anomali?",
+    "recon_error":         "Skor",
 })
 
 styled = (
@@ -153,7 +155,7 @@ st.dataframe(styled, use_container_width=True, height=650, hide_index=True)
 st.caption("🔴 Anomali • ⚪ Düşük kullanım (<30%) • 🟢 Yüksek kullanım (>90%)")
 
 # ────────────────────────────────────────────────────────────────
-# 7) Öneri Motoru (DRL)
+# 9) Öneri Motoru (DRL)
 # ────────────────────────────────────────────────────────────────
 st.header("📦 Asset Dağılım Önerileri (DRL)")
 if st.button("Önerileri Hesapla"):
